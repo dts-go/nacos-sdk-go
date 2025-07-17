@@ -44,6 +44,7 @@ type Config struct {
 	Sampling         *SamplingConfig
 	AppendToStdout   bool
 	LogRollingConfig *lumberjack.Logger
+	CustomLogger     Logger
 }
 
 type SamplingConfig struct {
@@ -70,28 +71,31 @@ type Logger interface {
 }
 
 func init() {
-	zapLoggerConfig := zap.NewDevelopmentConfig()
-	zapLoggerEncoderConfig := zapcore.EncoderConfig{
-		TimeKey:        "time",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		MessageKey:     "message",
-		StacktraceKey:  "stacktrace",
-		EncodeLevel:    zapcore.CapitalColorLevelEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
-		EncodeDuration: zapcore.SecondsDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
-	}
-	zapLoggerConfig.EncoderConfig = zapLoggerEncoderConfig
-	zapLogger, _ := zapLoggerConfig.Build(zap.AddCaller(), zap.AddCallerSkip(1))
-	SetLogger(&NacosLogger{zapLogger.Sugar()})
+	//zapLoggerConfig := zap.NewDevelopmentConfig()
+	//zapLoggerEncoderConfig := zapcore.EncoderConfig{
+	//	TimeKey:        "time",
+	//	LevelKey:       "level",
+	//	NameKey:        "logger",
+	//	CallerKey:      "caller",
+	//	MessageKey:     "message",
+	//	StacktraceKey:  "stacktrace",
+	//	EncodeLevel:    zapcore.CapitalColorLevelEncoder,
+	//	EncodeTime:     zapcore.ISO8601TimeEncoder,
+	//	EncodeDuration: zapcore.SecondsDurationEncoder,
+	//	EncodeCaller:   zapcore.ShortCallerEncoder,
+	//}
+	//zapLoggerConfig.EncoderConfig = zapLoggerEncoderConfig
+	//zapLogger, _ := zapLoggerConfig.Build(zap.AddCaller(), zap.AddCallerSkip(1))
+	//SetLogger(&NacosLogger{zapLogger.Sugar()})
 }
 
 func BuildLoggerConfig(clientConfig constant.ClientConfig) Config {
 	loggerConfig := Config{
 		Level:          clientConfig.LogLevel,
 		AppendToStdout: clientConfig.AppendToStdout,
+	}
+	if customLogger, ok := clientConfig.CustomLogger.(Logger); ok && customLogger != nil {
+		loggerConfig.CustomLogger = customLogger
 	}
 	if clientConfig.LogSampling != nil {
 		loggerConfig.Sampling = &SamplingConfig{
@@ -118,7 +122,11 @@ func BuildLoggerConfig(clientConfig constant.ClientConfig) Config {
 func InitLogger(config Config) (err error) {
 	logLock.Lock()
 	defer logLock.Unlock()
-	logger, err = InitNacosLogger(config)
+	if config.CustomLogger != nil {
+		logger = config.CustomLogger
+	} else {
+		logger, err = InitNacosLogger(config)
+	}
 	return
 }
 
